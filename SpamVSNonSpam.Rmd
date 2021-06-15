@@ -1,0 +1,275 @@
+---
+title: "SpamVSNonSpam"
+author: "Raian Rith"
+date: "6/14/2021"
+output: html_document
+---
+
+```{r}
+library(ISLR)
+spam=read.csv("spam.csv") # load dataset into R session
+spam$type=as.factor(spam$type) # convert 'type' to factor variable
+contrasts(spam$type)
+```
+
+```{r}
+set.seed(2)
+traindata=spam[1:200,1:58]   # training dataset
+testdata=spam[201:300,1:58]   # test dataset
+```
+
+## Logistic Regression
+
+```{r}
+logreg.fit1=glm(type ~., data=traindata,family=binomial)
+
+predprobs=predict(logreg.fit1,newdata=testdata,type="response")   
+
+predresponse=ifelse(predprobs>0.5,"spam","nonspam")  #logistic regression with threshold of 0.5
+table(predictions=predresponse,true=testdata$type)
+```
+
+Missclassification Rate = 22%, non spam as spam = 10.
+
+```{r}
+set.seed(2)
+predresponse2=ifelse(predprobs>0.7,"spam","nonspam") #logistic regression with threshold of 0.7
+table(predictions=predresponse2,true=testdata$type)
+```
+
+Missclassification Rate = 22%, non spam as spam = 10.
+
+## Linear Discriminant Analysis
+
+```{r}
+set.seed(2)
+library(MASS)
+newldafit=lda(type~.,data=traindata)   # fit LDA
+preds=predict(newldafit,newdata=testdata)   # obtain predictions
+table(predictions=preds$class,true=testdata$type)
+```
+
+Missclassification Rate = 16, nonspam as spam = 5
+
+```{r}
+set.seed(2)
+# change threshold for assigning predicted class labels
+newpreds=ifelse(preds$posterior[,2]>0.7,"spam","nonspam")
+table(predictions=newpreds,true=testdata$type)
+```
+
+Missclassification Rate = 18%,non spam as spam = 4
+
+## K Nearest Neighbour
+
+```{r}
+library(class)
+```
+
+```{r}
+set.seed(2)
+spam_knn=read.csv("spam.csv") # load dataset into R session
+
+spam_knn$type=as.factor(spam_knn$type) # convert 'type' to factor variable
+
+spam_knn$type=ifelse(spam_knn$type == "spam","spam","nonspam")   # create dummy variable
+
+traindata=spam_knn[1:200,c(1,57)]   # training dataset
+testdata=spam_knn[201:300,c(1,57)]   # test dataset
+train_y=spam_knn[1:200,58]   # training responses
+test_y = spam_knn[201:300,58]  
+knnfit=knn(traindata,testdata,train_y,k=5)   # fit K-NN
+
+table(predictions=knnfit,true=test_y)
+
+```
+
+Missclassification error rate : 42%
+Nonspam as spam : 19%
+
+```{r}
+set.seed(2)
+knnfit2=knn(traindata,testdata,train_y,k=1)   # fit K-NN with k = 1 
+table(predictions=knnfit2,true=test_y)
+
+knnfit3=knn(traindata,testdata,train_y,k=10)   # fit K-NN wiht k = 10
+table(predictions=knnfit3,true=test_y)
+
+knnfit4=knn(traindata,testdata,train_y,k= 3)   # fit K-NN with k = 3
+table(predictions=knnfit4,true=test_y)
+
+```
+
+Missclassification error rate : 39%   # fit K-NN with k = 1 
+Nonspam as spam : 16%
+
+
+Missclassification error rate : 40%   # fit K-NN wiht k = 10
+Nonspam as spam : 21%
+
+Missclassification error rate : 38%  # fit K-NN with k = 3
+Nonspam as spam : 18%
+
+## Classification Trees
+
+```{r}
+set.seed(2)
+library(randomForest)
+library(tree) # load the library
+train=spam[1:200,1:58]   # training dataset
+test=spam[201:300,1:58]   # test dataset
+```
+
+```{r}
+set.seed(2)
+classtree=tree(type~.,data=train) #SIMPLE CLASSIFICATION TREE
+preds_original=predict(classtree,newdata=test,type="class")
+plot(classtree)
+text(classtree, pretty = 0)
+```
+
+```{r}
+set.seed(2088)
+cv_classtree=cv.tree(classtree,K=5,FUN=prune.misclass)
+cv_classtree 
+plot(cv_classtree$size, cv_classtree$dev, type = "b",
+     xlab = "Tree Size", ylab = "CV Error")
+```
+
+```{r}
+#PRUNED CLASSIFICATION TREE
+pruned_classtree=prune.tree(classtree,best=4,method="misclass") 
+preds_pruned=predict(pruned_classtree,newdata=test,type="class") # predictions from pruned tree
+```
+
+```{r}
+#BAGGING
+set.seed(2)
+bag=randomForest(type~.,data=train,mtry=57, ntree = 500) 
+preds_bag=predict(bag,newdata=test,type="class") 
+```
+
+```{r}
+#RANDOM FOREST
+set.seed(2)
+rf=randomForest(type~.,data=train,mtry=19, ntree = 500)
+preds_rf=predict(rf,newdata=test,type="class") 
+```
+
+```{r}
+set.seed(2)
+# confusion matrix for original tree
+table(observed=test$type,predicted=preds_original) # misclassification rate 20%, Nonspam as spam : 10%
+
+# confusion matrix for pruned tree
+table(observed=test$type,predicted=preds_pruned) # misclassification rate 17%, Nonspam as spam : 4%
+
+# confusion matrix for bagged model
+table(observed=test$type,predicted=preds_bag) # misclassification rate 13%, Nonspam as spam : 3%
+
+# confusion matrix for random forests
+table(observed=test$type,predicted=preds_rf) # misclassification rate 12% Nonspam as spam : 3%
+```
+
+## SUPPORT VECTOR MACHINES
+
+```{r}
+library(e1071) 
+set.seed(2)
+
+# SVM with linear kernel
+
+tune_linear_svm=tune(svm,type~.,data=train,kernel="linear",ranges=list(cost=c(0.001,0.01,0.1,1,5,10,100))) 
+tune_linear_svm$best.parameters 
+
+best_linear_svm=tune_linear_svm$best.model
+summary(best_linear_svm) 
+
+preds_linear_svm=predict(best_linear_svm,newdata=test) # predicted class labels
+
+table(true=test$type,predicted=preds_linear_svm) # training misclassification rate 13%, Nonspam as spam : 3%
+
+```
+
+
+```{r}
+library(e1071) 
+set.seed(2)
+
+# SVM with polynomial kernel
+
+tune_poly_svm=tune(svm,type~.,data=train,kernel="polynomial",ranges=list(cost=c(0.001,0.01,0.1,1,5,10,100),degree=c(2,3,4,5))) 
+tune_poly_svm$best.parameters 
+
+best_poly_svm=tune_poly_svm$best.model
+summary(best_poly_svm) 
+
+preds_poly_svm=predict(best_poly_svm,newdata=test) # predicted class labels
+
+table(true=test$type,predicted=preds_poly_svm) # training misclassification rate 27%, Non spam as spam: 10
+
+```
+
+
+
+```{r}
+# SVM with radial kernel
+set.seed(2)
+
+tune_radial_svm=tune(svm,type~.,data=train,kernel="radial", ranges=list(cost=c(0.001,0.01,0.1,1,5,10,100), gamma=c(0.5,1,1.5,2))) 
+
+tune_radial_svm$best.parameters 
+
+best_radial_svm=tune_radial_svm$best.model 
+summary(best_radial_svm)
+
+preds_radial_svm=predict(best_radial_svm,newdata=test) 
+
+table(true=test$type,predicted=preds_radial_svm)  # training misclassification rate 45%, Non spam as spam: 0 %
+```
+
+  To address the problem of choosing optimal classifier which would provide the “best” result for a set of unseen test cases, I used 11 different techniques which include: Logistic Regression, Linear Discriminant Analysis, K-Nearest Neighbors, Simple Classification Tree, Pruned Classification Trees, Bagging, Random Foresting, and 3 different kinds of Support Vector Machines.  
+
+Firstly, I split the spam data set into training and testing datasets with a ratio of 2/3 and using the contrasts(spam$type) function i checked the binary code assignment by R for our response variable type.
+
+**Logistic Regression:**
+
+  First, I tried the logistic regression with a probability threshold of 0.5 to assign classes. The model yielded a misclassification rate of 22 %. The model predicted 10 non spam emails as spam emails.  Based on our goal, we want our computer make as less error as it can when it comes to classifying non spam as spam which is a bigger problem than identifying spam as non-spam. Hence, I tuned the algorithm to use a probability threshold of 0.7 which made the model stricter when it comes to identifying an email as a spam in the sense that now instead of 0.5, an email had to have a probability of 0.7 based on all predictors to be classified as spam. However, even after tuning the misclassification rate as well as the non-spam as spam misclassification rate remained the same. 
+
+**Linear Discriminant Analysis** 
+
+  I performed the linear discriminant analysis with the same probability thresholds as I did in logistic regression with the same concept in mind for tuning the algorithm. The LDA with a probability threshold of 0.5 yielded a misclassification rate of 16 %. The model predicted 5 non spam emails as spam emails. On the other hand, the LDA with a threshold of 0.7 yielded a misclassification rate of 18 %. The model predicted 4 non spam emails as spam emails. Even though the LDA with a threshold of 5 yields a lower misclassification rate, given the nature of our research and goals, we would choose the LDA with a threshold of 0.7 as the best LDA model since it provides the least number of non-spam emails being classified as spam emails between the two LDA models. 
+
+**K Nearest Neighbour**
+
+  For the KNN approach, I created a dummy variable for the type predictor which is our response and then divided the data to train data, test data, train response, and test response. First I tried to use the value of 5 as the value for k. This model yielded a misclassification rate of 42 %. The model predicted 19 non spam emails as spam emails. I then experimented with 1,3 and 10 as the values for k. Amon the four knn models, the model with a value of 1 turned out to be the best knn model with a misclassification rate of 39% with 16 non spam emails being classified as spam emails.  
+
+**Decision Trees** 
+ 
+- Simple Classification Tree 
+
+	The simple classification tree yielded a misclassification rate of 20% with 10 non-spam email being classified as spam. 
+
+- Pruned Tree 
+
+	For pruning, I performed 5-fold cross validation to find the tree size which yields the least misclassification error rate which was found to be 4.  I then pruned the tree with 4 as the value for the ‘best’ argument. The pruned tree yielded a misclassification rate of 17% with 4 non-spam email being classified as spam. 
+
+- Bagging 
+
+  For bagging, I used the random forest function with a value of 57 which is basically all the predictors for the model. This value of ‘mtry’ is what differentiates bagging with random foresting since bagging takes all predictors into account while deciding a split. The bagging tree yielded a misclassification rate of 12% with 2 non-spam email being classified as spam. 
+
+- Random Foresting  
+
+	For random foresting, I used a value of 19 for the mtry argument. That is because, generally a value of p/3 is used for the optimal results during random foresting. This yielded a misclassification rate of 14% with 4 non-spam email being classified as spam. 
+
+The bagging tree turned out to be the best decision tree based on both miscalculations error rate and the number of non-spam email being classified as spam emails. The bagging tree yielded a misclassification rate of 12% with 2 non-spam email being classified as spam. 
+
+
+**Support Vector Machine** 
+
+	I tried 3 different support vector machines with 3 different kernels – linear kernel, polynomial kernel, and radial kernel. Among the three models, the support vector machine with linear kernel performed the best. It yielded a misclassification rate of 13% with 3 non-spam email being classified as spam. 
+
+
+**Conclusion:** 
+
+  Amongst all the difference classifiers used, the bagging and support vector machine with linear kernel with very similar misclassification error rate. However based on the goal and purpose of the research, we would want the model which not only yields low misclassification error rate but also is the best in terms of not classifying non spam emails as spam emails. Hence, The bagging algorithm would be the optimal choice for the classification of spam and non-spam emails with a misclassification error rate of 12% (lowest among all models and approaches) and only 2 (lowest among all models and approaches) non spam emails being classified as spam emails. 
