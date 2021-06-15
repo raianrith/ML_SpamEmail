@@ -11,6 +11,7 @@
 - **Decision Trees : Pruned Class Tree, Bagging, Random Forest**
 - **Support Vector Machines: Linear, Polynomial, and Radial Kernels**
 
+Amongst all the difference classifiers used, the bagging and support vector machine with linear kernel with very similar misclassification error rate. However based on the goal and purpose of the research, we would want the model which not only yields low misclassification error rate but also is the best in terms of not classifying non spam emails as spam emails. Hence, The bagging algorithm would be the optimal choice for the classification of spam and non-spam emails with a misclassification error rate of 12% (lowest among all models and approaches) and only 2 (lowest among all models and approaches) non spam emails being classified as spam emails. 
 
 <img width="781" alt="Screen Shot 2021-06-14 at 7 07 53 PM" src="https://user-images.githubusercontent.com/61523138/121975372-185c3400-cd47-11eb-82fb-42d3f161c72e.png">
 
